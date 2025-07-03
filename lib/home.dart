@@ -1,40 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'views/list_view.dart';
 import 'views/card_view.dart';
 import 'views/grid_view.dart';
 import 'views/settings_screen.dart';
-
-class ExampleDestination {
-  const ExampleDestination(this.label, this.icon, this.selectedIcon);
-
-  final String label;
-  final Widget icon;
-  final Widget selectedIcon;
-}
-
-const List<ExampleDestination> destinations = <ExampleDestination>[
-  ExampleDestination(
-      'List',
-      Icon(Icons.list_outlined),
-      Icon(Icons.list)
-  ),
-  ExampleDestination(
-      'Card',
-      Icon(Icons.card_giftcard),
-      Icon(Icons.card_giftcard)
-  ),
-  ExampleDestination(
-      'Grid',
-      Icon(Icons.grid_on_outlined),
-      Icon(Icons.grid_on)
-  ),
-  ExampleDestination(
-      'Configuración',
-      Icon(Icons.settings_outlined),
-      Icon(Icons.settings)
-  ),
-];
 
 class HomeScreen extends StatefulWidget {
   final Function(Color) changeTheme;
@@ -49,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _userName = "App Menu";
   Color _primaryColor = const Color(0xFF4FC3F7);
+  File? _profileImage;
 
   @override
   void initState() {
@@ -62,24 +33,28 @@ class _HomeScreenState extends State<HomeScreen> {
       _userName = prefs.getString('name') ?? "App Menu";
       final colorValue = prefs.getInt('primary_color') ?? 0xFF4FC3F7;
       _primaryColor = Color(colorValue);
+      final imagePath = prefs.getString('profile_image');
+      if (imagePath != null) {
+        _profileImage = File(imagePath);
+      }
     });
   }
 
-  void _handleScreenChanged(int selectedIndex) {
+  void _handleScreenChanged() {
     _scaffoldKey.currentState?.closeDrawer();
-
-    if (selectedIndex < 3) {
-      setState(() {
-        _currentPageIndex = selectedIndex;
-      });
-    } else if (selectedIndex == 3) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => SettingsScreen(changeTheme: widget.changeTheme)),
-      ).then((_) async {
-        await _loadPreferences();
-      });
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => SettingsScreen(
+        changeTheme: widget.changeTheme,
+        updateProfileImage: (newImage) {
+          setState(() {
+            _profileImage = newImage != null ? File(newImage) : null;
+          });
+        },
+      )),
+    ).then((_) async {
+      await _loadPreferences();
+    });
   }
 
   @override
@@ -129,11 +104,17 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.person, size: 30, color: Colors.white),
-                ),
+                if (_profileImage != null)
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundImage: FileImage(_profileImage!),
+                  )
+                else
+                  const CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white24,
+                    child: Icon(Icons.person, size: 30, color: Colors.white),
+                  ),
                 const SizedBox(height: 15),
                 Text(
                   _userName,
@@ -165,35 +146,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          ...destinations.map<Widget>((ExampleDestination destination) {
-            return ListTile(
-              leading: destination.icon,
-              title: Text(
-                destination.label,
-                style: const TextStyle(color: Colors.white),
-              ),
-              onTap: () => _handleScreenChanged(destinations.indexOf(destination)),
-              tileColor: _currentPageIndex == destinations.indexOf(destination)
-                  ? _primaryColor.withOpacity(0.5)
-                  : null,
-            );
-          }).toList(),
-          const Divider(color: Colors.white24, height: 20),
+          // Solo mostramos la opción de Configuración
           ListTile(
-            leading: const Icon(Icons.info_outline, color: Colors.white),
+            leading: const Icon(Icons.settings_outlined, color: Colors.white),
             title: const Text(
-              'About',
+              'Configuración',
               style: TextStyle(color: Colors.white),
             ),
-            onTap: () {
-              _scaffoldKey.currentState?.closeDrawer();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('About this app'),
-                  backgroundColor: _primaryColor,
-                ),
-              );
-            },
+            onTap: _handleScreenChanged,
           ),
         ],
       ),

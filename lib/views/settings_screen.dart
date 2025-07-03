@@ -1,10 +1,18 @@
+import 'dart:io'; // Agregar esto
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:image_picker/image_picker.dart'; // Agregar esto
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Function(Color) changeTheme;
-  const SettingsScreen({super.key, required this.changeTheme});
+  final Function(String?) updateProfileImage;
+
+  const SettingsScreen({
+    super.key,
+    required this.changeTheme,
+    required this.updateProfileImage,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -15,6 +23,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   Color _currentColor = const Color(0xFF4FC3F7);
+  File? _profileImage; // Para la imagen seleccionada
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -29,6 +39,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _emailController.text = prefs.getString('email') ?? '';
       final colorValue = prefs.getInt('primary_color') ?? 0xFF4FC3F7;
       _currentColor = Color(colorValue);
+      final imagePath = prefs.getString('profile_image');
+      if (imagePath != null) {
+        _profileImage = File(imagePath);
+      }
     });
   }
 
@@ -38,6 +52,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await prefs.setString('name', _nameController.text);
       await prefs.setString('email', _emailController.text);
       await prefs.setInt('primary_color', _currentColor.value);
+
+      // Guardar la ruta de la imagen
+      if (_profileImage != null) {
+        await prefs.setString('profile_image', _profileImage!.path);
+        widget.updateProfileImage(_profileImage!.path);
+      } else {
+        await prefs.remove('profile_image');
+        widget.updateProfileImage(null);
+      }
 
       widget.changeTheme(_currentColor);
 
@@ -82,6 +105,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _profileImage = File(image.path);
+      });
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _profileImage = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -123,6 +161,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 30),
+              const Text(
+                'Imagen de perfil',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: Stack(
+                  children: [
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Colors.grey[300],
+                        backgroundImage: _profileImage != null
+                            ? FileImage(_profileImage!)
+                            : null,
+                        child: _profileImage == null
+                            ? const Icon(Icons.camera_alt, size: 50, color: Colors.grey)
+                            : null,
+                      ),
+                    ),
+                    if (_profileImage != null)
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: _removeImage,
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 30),
               const Text(
